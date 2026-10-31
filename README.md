@@ -5,6 +5,11 @@ Just another custom logger for Python.
 `jacl4py` is a standalone package containing the custom Python logger previously
 used by pookiepy.
 
+## Release Status
+
+Releases before `1.0.0` are testing versions and may introduce breaking changes
+without a major version increment. Semantic versioning will begin with `1.0.0`.
+
 ## Installation
 
 Install from PyPI:
