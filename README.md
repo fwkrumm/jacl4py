@@ -165,7 +165,7 @@ GitHub Actions discovers workflows only from the repository root's
 run automatically in this monorepo. When this package is published from its own
 repository, keep these workflow files at that repository root.
 
-`publish.yml` runs on pushes to `master`, not GitHub Release publication. A
+`pypi_publish.yml` runs on pushes to `master`, not GitHub Release publication. A
 read-only build job runs preflight unit tests, builds wheel and sdist, checks
 them with Twine, smoke-tests each installed artifact, and uploads the validated
 distributions. Only then does the `pypi-release` environment job publish those
@@ -179,7 +179,7 @@ version constant manually before a new release: neither tags nor commit messages
 infer or automatically bump the version. PDM reads that constant for metadata.
 
 Configure the PyPI trusted publisher for project `jacl4py`, your GitHub
-owner/repository, workflow filename `publish.yml`, and environment `pypi-release`.
+owner/repository, workflow filename `pypi_publish.yml`, and environment `pypi-release`.
 Keep that filename to preserve the trusted publisher identity and retain the
 environment URL `https://pypi.org/project/jacl4py/`. Confirm project availability
 and choose an unpublished version before pushing. Skipping existing files allows
