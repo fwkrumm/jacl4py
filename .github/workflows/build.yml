@@ -1,0 +1,70 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - id: python
+        uses: $/.github/actions/setup-python
+        with:
+          python-version: "3.14"
+          enable-cache: 'false'
+      - name: Run release preflight tests
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv run --with-requirements requirements.txt python -m unittest discover -s tests -p "test_*.py"
+      - name: Build source distribution and wheel
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv build
+      - name: Validate distribution metadata
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uvx twine check dist/*
+      - name: Install and smoke-test each distribution
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          for artifact in dist/*.whl dist/*.tar.gz; do
+            uv run --isolated --no-project --with "$artifact" python -I -c '
+          import io
+          import logging
+          import sys
+          from importlib.metadata import version
+          from jacl4py import __version__
+          from jacl4py.logger import JacLogger, get_logger
+          assert version("jacl4py") == __version__
+          assert "pookiepy" not in sys.modules
+          logger = get_logger("artifact_smoke", console_log_level=None, file_log_level=None)
+          assert isinstance(logger, JacLogger)
+          output = io.StringIO()
+          handler = logging.StreamHandler(output)
+          logger.addHandler(handler)
+          logger.idebug("debug")
+          logger.iinfo("info")
+          assert output.getvalue() == "debug\ninfo\n"
+          handler.close()
+          logger.removeHandler(handler)
+          '
+          done
+      - name: Upload validated distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error

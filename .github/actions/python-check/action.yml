@@ -1,0 +1,49 @@
+name: Python check
+description: Set up Python, install dependencies, and run one suite.
+inputs:
+  python-version:
+    description: Python version; floating 3.x enables the optional dependency probe.
+    required: true
+  suite:
+    description: Check suite (unit or lint).
+    required: true
+  requirements:
+    description: Core requirement file.
+    default: requirements.txt
+  extra-requirements:
+    description: Optional additional requirement file.
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Set up Python and uv
+      id: setup
+      uses: $/.github/actions/setup-python
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache-suffix: ${{ inputs.suite }}-py${{ inputs.python-version }}-${{ runner.os }}-${{ runner.arch }}
+    - name: Prepare dependencies
+      id: dependencies
+      uses: $/.github/actions/install-dependencies
+      with:
+        python-path: ${{ steps.setup.outputs.python-path }}
+        probe: ${{ inputs.python-version == '3.x' }}
+        requirements: |
+          ${{ inputs.requirements }}
+          ${{ inputs.extra-requirements }}
+        packages: |
+          .
+          ${{ inputs.suite == 'unit' && 'coverage' || 'pylint' }}
+    - name: Run checks
+      if: steps.dependencies.outputs.ready == 'true'
+      shell: bash
+      env:
+        UV_PYTHON: ${{ steps.setup.outputs.python-path }}
+        CHECK_SUITE: ${{ inputs.suite }}
+      run: uv run --no-project python .github/scripts/run_checks.py "$CHECK_SUITE"
+    - name: Report latest Python probe failure
+      if: failure() && inputs.python-version == '3.x'
+      shell: bash
+      env:
+        UV_PYTHON: ${{ steps.setup.outputs.python-path }}
+      run: uv run --no-project python .github/scripts/report_probe.py failed

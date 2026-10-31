@@ -1,0 +1,115 @@
+name: Publish to PyPI
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - id: python
+        uses: $/.github/actions/setup-python
+        with:
+          python-version: "3.x"
+          enable-cache: 'false'
+      - name: Run release preflight tests
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv run --with-requirements requirements.txt python -m unittest discover -s tests -p "test_*.py"
+      - name: Build source distribution and wheel
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uv build
+      - name: Validate distribution metadata
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: uvx twine check dist/*
+      - name: Install and smoke-test each distribution
+        shell: bash
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          for artifact in dist/*.whl dist/*.tar.gz; do
+            uv run --isolated --no-project --with "$artifact" python -I -c '
+          import io
+          import logging
+          import sys
+          from importlib.metadata import version
+          from jacl4py import __version__
+          from jacl4py.logger import JacLogger, get_logger
+          assert version("jacl4py") == __version__
+          assert "pookiepy" not in sys.modules
+          logger = get_logger("artifact_smoke", console_log_level=None, file_log_level=None)
+          assert isinstance(logger, JacLogger)
+          output = io.StringIO()
+          handler = logging.StreamHandler(output)
+          logger.addHandler(handler)
+          logger.idebug("debug")
+          logger.iinfo("info")
+          assert output.getvalue() == "debug\ninfo\n"
+          handler.close()
+          logger.removeHandler(handler)
+          '
+          done
+      - name: Upload validated distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi-release
+      url: https://pypi.org/project/jacl4py/
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout release commit for tagging
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: true # zizmor: ignore[artipacked] required for release tag push
+      - name: Set up Python
+        id: python
+        uses: $/.github/actions/setup-python
+        with:
+          python-version: "3.x"
+          enable-cache: 'false'
+      - name: Download validated distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: python-distributions
+          path: dist
+      - name: Publish using PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@v1.14.2 # zizmor: ignore[unpinned-uses] exact release tag intentionally used
+        with:
+          # repository-url: https://upload.pypi.org/legacy/
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist
+          verify-metadata: true
+          skip-existing: true
+          print-hash: false
+          attestations: true
+
+      - name: Create and push release tag
+        if: success() && github.ref_name == 'master'
+        shell: bash
+        env:
+          UV_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: bash .github/scripts/tag_release.sh
