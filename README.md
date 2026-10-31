@@ -121,23 +121,27 @@ This standalone repository targets Python 3.10 or newer. It is authored by
 Fabian Krumm and distributed under the BSD 3-Clause License from the original
 project.
 
-Run the unit tests with uv:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run
+from this repository's root. Python 3.14 matches the mandatory CI lint runtime:
 
 ```powershell
-uv pip install -r requirements.txt
-uv run --with-requirements requirements.txt python -m unittest discover -s tests -p "test_*.py"
+uv venv --python 3.14
+uv pip install -e . -r requirements-dev.txt
 ```
 
-Install development tools, including Pylint and coverage:
+No environment activation is needed for `uv run`. The editable install makes
+local source changes available without reinstalling. Run the CI unit check
+(including coverage) and lint check:
 
 ```powershell
-uv pip install -r requirements-dev.txt
+uv run python .github/scripts/run_checks.py unit
+uv run python .github/scripts/run_checks.py lint
 ```
 
-Run the same Pylint check as the push and pull request workflow:
+Run a single test module while iterating:
 
 ```powershell
-uv run --with-requirements requirements-dev.txt python -m pylint --jobs=1 jacl4py tests
+uv run python -m unittest tests.test_logger_behavior
 ```
 
 Check test coverage, including branches and missing lines:
@@ -151,7 +155,12 @@ Build with:
 
 ```powershell
 uv build
+uvx twine check dist/*
 ```
+
+Contributor and agent context is in [AGENTS.md](AGENTS.md). Add regression tests
+for behavior changes; test and lint before opening a pull request. Publishing
+requires the release configuration below, not a local build alone.
 
 `requirements.txt` contains runtime-only dependencies and mirrors
 `pyproject.toml` project dependencies. The workflows use it before tests, build,
@@ -166,7 +175,7 @@ test/workflow sources directly, so a `MANIFEST.in` file is unnecessary.
 ## Publishing
 
 GitHub Actions discovers workflows only from the repository root's
-`.github/workflows` directory; workflows nested under `logger-package` are not
+`.github/workflows` directory; workflows nested under another workspace are not
 run automatically in this monorepo. When this package is published from its own
 repository, keep these workflow files at that repository root.
 
@@ -195,7 +204,7 @@ Protect `master` with required supported-version tests, lint, build and workflow
 audit checks; protect the environment with reviewers and branch restrictions.
 Floating `3.x` probes are nonblocking, not support guarantees. CI runs Python
 3.10-3.14 on five runners, reports coverage without a minimum, and uses Pylint
-3.2.6 with the default fail-under of 10 and no disabled messages or custom
+4.0.10 with the default fail-under of 10 and no disabled messages or custom
 threshold. See [.github/CI.md](.github/CI.md) for the matrix, weekly
 checks, reference differences, and repository settings.
 
