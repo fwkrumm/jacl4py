@@ -49,11 +49,34 @@ class TestPublicationReadiness(unittest.TestCase):
                             logger = get_logger(name, console_log_level=None, **options)
                         try:
                             filename = Path(logger.handlers[0].baseFilename)
-                            self.assertTrue(filename.resolve().is_relative_to(Path(directory)))
+                            self.assertTrue(
+                                filename.resolve().is_relative_to(Path(directory).resolve())
+                            )
                             self.assertEqual(filename.parent.parent if default else filename.parent,
                                              Path(directory))
                         finally:
                             delete_logger(name)
+
+    def test_log_directory_symlink_resolves_inside_target(self):
+        """Containment checks compare canonical paths for symlinked directories."""
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "target"
+            target.mkdir()
+            linked = Path(directory) / "linked"
+            try:
+                linked.symlink_to(target, target_is_directory=True)
+            except OSError as error:
+                self.skipTest(f"Directory symlinks unavailable: {error}")
+            for default in (True, False):
+                with self.subTest(default=default):
+                    with patch("jacl4py.logger.tempfile.gettempdir", return_value=str(linked)):
+                        options = {} if default else {"log_dir": linked}
+                        logger = get_logger(self.name, console_log_level=None, **options)
+                    try:
+                        filename = Path(logger.handlers[0].baseFilename)
+                        self.assertTrue(filename.resolve().is_relative_to(linked.resolve()))
+                    finally:
+                        delete_logger(self.name)
 
     def test_default_path_retries_uuid_collision(self):
         """An occupied UUID directory is never reused."""

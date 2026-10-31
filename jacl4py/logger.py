@@ -16,8 +16,10 @@ from uuid import uuid4
 
 import coloredlogs
 
-from . import __version__ as __version__
+from . import __version__ as _package_version
 from .exceptions import ResourceNotInitializedError
+
+__version__ = _package_version
 
 INTERNAL_DEBUG = 5
 INTERNAL_INFO = 7
@@ -64,7 +66,7 @@ _lifecycle_lock = RLock()
 
 
 def _after_fork() -> None:
-    global _manager, _lifecycle_lock
+    global _manager, _lifecycle_lock  # pylint: disable=global-statement
     for logger in _manager.loggerDict.values():
         if isinstance(logger, JacLogger):
             logger._deleted = True  # pylint: disable=protected-access
@@ -79,14 +81,17 @@ if hasattr(os, "register_at_fork"):
 
 
 def _synchronized(function):
+    """Serialize package logger lifecycle operations."""
     @wraps(function)
     def wrapped(*args, **kwargs):
+        """Run the operation while holding the lifecycle lock."""
         with _lifecycle_lock:
             return function(*args, **kwargs)
     return wrapped
 
 
 def _create_log_path(name: str, log_dir: str | Path | LogDir) -> Path:
+    """Reserve a unique sanitized log path without reusing an existing writer."""
     safe_name = re.sub(r"[^A-Za-z0-9_.-]", "_", name).strip(".")[:64] or "logger"
     if log_dir is not LogDir.DEFAULT:
         directory = Path(log_dir)
