@@ -191,7 +191,7 @@ audit checks; protect the environment with reviewers and branch restrictions.
 Floating `3.x` probes are nonblocking, not support guarantees. CI runs Python
 3.10-3.14 on five runners, reports coverage without a minimum, and uses Pylint
 3.2.6 with the default fail-under of 10 and no disabled messages or custom
-threshold. See [.github/readme.md](.github/readme.md) for the matrix, weekly
+threshold. See [.github/CI.md](.github/CI.md) for the matrix, weekly
 checks, reference differences, and repository settings.
 
 # todos

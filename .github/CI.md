@@ -152,7 +152,7 @@ PyPI/OIDC publication still require GitHub Actions validation.
 | `.github/scripts/run_checks.py` | Coverage/unit and serial Pylint execution. |
 | `.github/scripts/report_probe.py` | Warnings and job summaries for skipped/failed probes. |
 | `.github/scripts/tag_release.sh` | Annotated version tags; same-commit retry; refuse tag movement. |
-| `.github/readme.md` | Differences, deviations, validation, external setup and this inventory. |
+| `.github/CI.md` | Differences, deviations, validation, external setup and this inventory. |
 | `.pylintrc` | Applicable reference lint configuration without framework exclusions. |
 | `requirements-dev.txt` | Supported, fixed Pylint pin; retain coverage and runtime requirements. |
 | `pyproject.toml` | Include complete CI sources and lint configuration in sdists. |
