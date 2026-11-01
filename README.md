@@ -2,8 +2,8 @@
 
 Just another custom logger for Python.
 
-`jacl4py` is a standalone package containing the custom Python logger previously
-used by pookiepy.
+For Python developers, `jacl4py` provides isolated named loggers, custom
+diagnostic levels, and configurable console and rotating file output.
 
 ## Release Status
 

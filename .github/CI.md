@@ -2,8 +2,7 @@
 
 These workflows assume this package is its own repository root. GitHub does not
 discover them while nested in the parent workspace. Reference workflow/action
-files in `reference-pookiepy`, not its potentially stale README, define the
-comparison. This note records the original differences, implemented changes
+files, rather than potentially stale READMEs, define the comparison. This note records the original differences, implemented changes
 and intentional deviations.
 
 ## Original Differences
@@ -17,7 +16,7 @@ and intentional deviations.
 - Local jobs repeated setup/install commands and disabled uv caching; reference
   shares setup, dependency probing and check dispatch with CI caches enabled.
 - Weekly latest-Python checks and actionlint/zizmor audits were absent. Reference
-  additionally has weekly gRPC compatibility and installed CLI skeleton smoke.
+  additionally has weekly integration compatibility and installed CLI skeleton smoke.
 - Local `build.yml` already ran tests, built and Twine-checked wheel/sdist,
   smoke-tested both installations and uploaded artifacts. Reference has no
   equivalent build workflow, but does have its framework CLI smoke workflow.
@@ -32,7 +31,7 @@ and intentional deviations.
 - Local publication used fixed Python 3.14; reference publishing uses `3.x`.
   Release build and tag setup now use `3.x`, without optional-probe failure policy.
 - Dynamic, file-based PDM version metadata already matched the reference model;
-  the standalone package has no framework protobuf build hook to preserve.
+  the standalone package has no framework code-generation build hook to preserve.
 
 ## Implemented Configuration and CI Contract
 
@@ -49,8 +48,8 @@ and intentional deviations.
   No diagnostics are disabled; default fail-under is 10, with no custom threshold.
 - The compact `.pylintrc` preserves every effective reference setting, without
   comments. Only domain-specific entries are removed: the custom integration
-  path in `init-hook`, generated protobuf ignore patterns/modules, grpc ignored
-  classes, and `grpc`/`google` third-party classifications. The root import hook,
+  path in `init-hook`, generated-code ignore patterns/modules, integration-specific
+  ignored classes, and third-party classifications. The root import hook,
   `source-roots`, `ignore=third_party,interface`, optparse/thread ignored classes,
   empty settings and all other reference values remain. Configured `jobs=4`
   remains; the CI command overrides it to 1, just like the reference.
@@ -61,7 +60,7 @@ and intentional deviations.
   security audit with zizmor, on workflow/action/script changes and manual runs.
 - Shared `setup-python`, `install-dependencies` and `python-check` actions use
   adapted `install_dependencies.py`, `run_checks.py` and `report_probe.py` helpers.
-  Callers own matrices/policy; helpers omit grpc/proto/examples handling. The
+  Callers own matrices/policy; helpers omit integration, code-generation and examples handling. The
   selected interpreter is passed through `UV_PYTHON`; the local project
   is installed for distribution-metadata tests. CI uv caches are enabled and
   keyed by suite, Python, OS and architecture; release caches stay disabled.
@@ -89,9 +88,9 @@ same-commit tags are no-ops, different-commit tags cause failure and are never m
   diagnostic results can differ between Pylint major versions.
 - `build.yml` remains an additional Ubuntu / Python 3.14 gate. Reference CLI
   skeleton smoke covers 3.10/3.14/3.x on three desktop OSes, but tests installed
-  pookiepy skeleton generation, which this package does not provide. Package
+  framework skeleton generation, which this package does not provide. Package
   wheel/sdist smoke checks are retained, not claimed as literal CLI matrix parity.
-- Weekly gRPC, protobuf generation, examples, framework integration and CLI
+- Weekly integration checks, code generation, examples, framework integration and CLI
   suites/dependencies are excluded because they are absent here. No fake suites
   or dependencies are added. Core supported-version matrix parity is unchanged.
 - Existing `test.yml`, `lint.yml` and `build.yml` identities remain

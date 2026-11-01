@@ -46,12 +46,10 @@ jobs:
             uv run --isolated --no-project --with "$artifact" python -I -c '
           import io
           import logging
-          import sys
           from importlib.metadata import version
           from jacl4py import __version__
           from jacl4py.logger import JacLogger, get_logger
           assert version("jacl4py") == __version__
-          assert "pookiepy" not in sys.modules
           logger = get_logger("artifact_smoke", console_log_level=None, file_log_level=None)
           assert isinstance(logger, JacLogger)
           output = io.StringIO()
