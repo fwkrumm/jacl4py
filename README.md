@@ -51,8 +51,18 @@ letters, digits, dots, underscores, and hyphens for filesystem use, with other
 characters replaced by underscores and the name component limited to 64
 characters. The original logger name is preserved in log records.
 
-Each writer has one stable active filename. Files rotate daily and retain up to
-30 backups for that writer, not necessarily 30 calendar days. Reinitialization
+Each writer has one stable active filename. By default, logs rotate at local
+midnight. To rotate by file size or elapsed time instead, pass one of these
+options to `get_logger()`:
+
+```python
+by_size = get_logger("size_based", rotation_max_bytes=100_000_000)  # 100 MB
+by_time = get_logger("time_based", rotation_interval_seconds=3600)  # One hour
+```
+
+Both options require a positive integer and cannot be combined. Time-based
+rotation happens on the first log written after the interval elapses, not in
+the background. Every mode keeps up to 30 backups per writer. Reinitialization
 and new processes receive fresh paths. Old run directories and file families
 are preserved, not automatically pruned. The custom `iinfo()` and `idebug()`
 methods emit at levels 7 and 5 respectively.

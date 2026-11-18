@@ -9,7 +9,7 @@ import tempfile
 import warnings
 from enum import Enum
 from functools import wraps
-from logging.handlers import TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from pathlib import Path
 from threading import RLock
 from uuid import uuid4
@@ -137,6 +137,20 @@ def delete_logger(name: str = "default") -> bool:
     return True
 
 
+def _validate_rotation(max_bytes: int | None, interval_seconds: int | None) -> None:
+    """Reject conflicting or nonpositive rotation thresholds."""
+    if max_bytes is not None and interval_seconds is not None:
+        raise ValueError("Set only one of rotation_max_bytes and rotation_interval_seconds.")
+    for option, value in (
+        ("rotation_max_bytes", max_bytes),
+        ("rotation_interval_seconds", interval_seconds),
+    ):
+        if value is not None and (
+            not isinstance(value, int) or isinstance(value, bool) or value <= 0
+        ):
+            raise ValueError(f"{option} must be a positive integer or None.")
+
+
 @_synchronized
 def get_logger(  # pylint: disable=too-many-arguments
     name: str = "default",
@@ -145,7 +159,9 @@ def get_logger(  # pylint: disable=too-many-arguments
     log_dir: str | Path | LogDir | None = LogDir.DEFAULT,
     file_log_level: int | None = INTERNAL_DEBUG,
     use_colored_output: bool = True,
-    reinit_if_exists: bool = False
+    reinit_if_exists: bool = False,
+    rotation_max_bytes: int | None = None,
+    rotation_interval_seconds: int | None = None,
 ) -> JacLogger:
     """
     Get or create a configured logger instance.
@@ -167,6 +183,14 @@ def get_logger(  # pylint: disable=too-many-arguments
     reinit_if_exists : bool
         Delete an existing named logger and apply new settings (default: False).
         Existing log files are preserved.
+    rotation_max_bytes : int | None
+        Positive file size threshold in bytes for size-based rotation.
+    rotation_interval_seconds : int | None
+        Positive interval in seconds for time-based rotation. Rotation happens
+        on the next file log after the interval elapses.
+
+    Set at most one rotation option. If neither is set, files rotate at
+    local midnight. All modes keep up to 30 backups per writer.
 
     Returns
     -------
@@ -176,18 +200,21 @@ def get_logger(  # pylint: disable=too-many-arguments
     """
     if not isinstance(name, str) or not name:
         raise ValueError("Logger name must be a non-empty string.")
-    if reinit_if_exists:
-        delete_logger(name)
-    logger = _manager.getLogger(name)
 
     # Avoid adding handlers multiple times
-    if logger.handlers:
+    cached_logger = _manager.loggerDict.get(name)
+    if not reinit_if_exists and isinstance(cached_logger, JacLogger) and cached_logger.handlers:
         warnings.warn(
             f"Logger '{name}' already configured; returning cached logger "\
                 "and ignoring new settings.",
             stacklevel=2
         )
-        return logger
+        return cached_logger
+
+    _validate_rotation(rotation_max_bytes, rotation_interval_seconds)
+    if reinit_if_exists:
+        delete_logger(name)
+    logger = _manager.getLogger(name)
 
     # Logger level must be INTERNAL to allow file handler to capture everything
     # Individual handlers control their own output levels
@@ -238,13 +265,18 @@ def get_logger(  # pylint: disable=too-many-arguments
     if log_dir is not None and file_log_level is not None:
         try:
             log_filename = _create_log_path(name, log_dir)
-            file_handler = TimedRotatingFileHandler(
-                log_filename,
-                when="midnight",
-                interval=1,
-                backupCount=30,
-                encoding="utf-8"
-            )
+            if rotation_max_bytes is not None:
+                file_handler = RotatingFileHandler(
+                    log_filename, maxBytes=rotation_max_bytes, backupCount=30, encoding="utf-8"
+                )
+            else:
+                file_handler = TimedRotatingFileHandler(
+                    log_filename,
+                    when="midnight" if rotation_interval_seconds is None else "S",
+                    interval=rotation_interval_seconds or 1,
+                    backupCount=30,
+                    encoding="utf-8",
+                )
             file_handler.setLevel(file_log_level)
             file_handler.setFormatter(file_formatter)
             logger.addHandler(file_handler)

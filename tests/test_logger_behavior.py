@@ -90,6 +90,59 @@ class TestLoggerBehavior(unittest.TestCase):
                     handler.close()
                     logger.removeHandler(handler)
 
+    def test_size_rotation_moves_previous_record_to_backup(self):
+        """A record that would reach the byte threshold starts a new file."""
+        with tempfile.TemporaryDirectory() as directory:
+            logger = get_logger(
+                self.name, log_dir=directory, console_log_level=None,
+                file_log_level=logging.WARNING, rotation_max_bytes=1024,
+            )
+            try:
+                active = next(Path(directory).glob("*.log"))
+                backup = active.with_suffix(".log.1")
+                first = "first-" + "a" * 600
+                second = "second-" + "b" * 600
+                logger.warning(first)
+                self.assertFalse(backup.exists())
+                logger.warning(second)
+                self.assertIn(first, backup.read_text(encoding="utf-8"))
+                self.assertIn(second, active.read_text(encoding="utf-8"))
+                self.assertNotIn(first, active.read_text(encoding="utf-8"))
+            finally:
+                delete_logger(self.name)
+
+    def test_timed_rotation_waits_until_interval_elapses(self):
+        """The first record at the hourly deadline starts a new file."""
+        with tempfile.TemporaryDirectory() as directory:
+            logger = get_logger(
+                self.name, log_dir=directory, console_log_level=None,
+                file_log_level=logging.WARNING, rotation_interval_seconds=3600,
+            )
+            try:
+                active = next(Path(directory).glob("*.log"))
+                deadline = int(active.stat().st_mtime) + 3600
+                with patch("logging.handlers.time.time", return_value=deadline - 1):
+                    logger.warning("before deadline")
+                self.assertEqual(list(Path(directory).iterdir()), [active])
+                with patch("logging.handlers.time.time", return_value=deadline):
+                    logger.warning("at deadline")
+                backup, = Path(directory).glob(f"{active.name}.*")
+                self.assertIn("before deadline", backup.read_text(encoding="utf-8"))
+                self.assertIn("at deadline", active.read_text(encoding="utf-8"))
+                self.assertNotIn("before deadline", active.read_text(encoding="utf-8"))
+            finally:
+                delete_logger(self.name)
+
+    def test_invalid_rotation_settings_raise_value_error(self):
+        """Reject conflicting modes and invalid thresholds before setup."""
+        for max_bytes, interval_seconds in ((100, 60), (0, None), (None, -1), (None, True)):
+            with self.subTest(max_bytes=max_bytes, interval_seconds=interval_seconds):
+                with self.assertRaises(ValueError):
+                    get_logger(
+                        self.name, rotation_max_bytes=max_bytes,
+                        rotation_interval_seconds=interval_seconds,
+                    )
+
     def test_none_directory_disables_files_but_keeps_console(self):
         """A None directory skips filesystem setup without disabling the console."""
         with patch("jacl4py.logger.tempfile.gettempdir") as gettempdir:
